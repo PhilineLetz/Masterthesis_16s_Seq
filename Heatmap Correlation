@@ -1,0 +1,179 @@
+---
+title: "Heatmap Correlation"
+author: "Philine Letz"
+date: "2023-06-26"
+output:
+  pdf_document: default
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1")
+library(tidyverse)
+library(bcdstats)
+library(ggplot2)
+library(reshape2)
+library(Hmisc)
+library(tidyverse)
+library(phyloseq)
+library(ggrepel)
+library(ggpubr)
+library(ggplot2)
+library(gplots)
+library(reshape2)
+library(dplyr)
+library(hrbrthemes)
+library(viridis)
+library(arsenal)
+
+```
+
+#Load required data
+```{r}
+merged_mat_1000 <- read.delim("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1/merged_mat_1000.txt") #read in matrix including 3 clin parameter and the taxa with more than 1000 in sum
+
+# merged_mat_5000_1 <- read.delim("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1/merged_mat_5000.txt")
+# merged_mat_5000 <- merged_mat_5000_1%>%rename("hb" = "Hemoglobin", "plasma.crea" = "Plasma Creatinine")
+#write.table(merged_mat_5000, file = "mergedmat_5000_renamed.txt", sep = "\t")
+
+ merged_mat_5000 <- read.delim("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1/mergedmat_5000_renamed.txt")
+
+
+```
+
+
+#Heatmap from taxa significantly correlating with clinical parameters (adjusted) from mergedmat1000
+```{r}
+
+#datCor1000 <- cor(merged_mat_1000, use = "pairwise")
+
+#datCor1000_1 <- as.data.frame(datCor1000) 
+#datCor1000_2 <- subset(datCor1000_1, rownames(datCor1000_1) %in% c('hb', 'plasma.crea', 'GFR'))
+
+ #Create correlation matrix with adjusted p values
+pmat.adj <- adjust.corr(
+  merged_mat_1000,
+  type = c("spearman"),
+  use = c("pairwise.complete.obs"),
+  adjust = "fdr"
+)
+
+padj <- pmat.adj$P  #matrix of adjusted p cvalues
+
+padj.R <- pmat.adj$R
+padj.R <- padj.R$r #matrix of correlation coefficients
+p.matR <- subset(padj.R, rownames(padj.R) %in% c('hb', 'plasma.crea', 'GFR')) #make it small
+
+#p.mat1000 <- cor_pmat(merged_mat_1000)
+#pvalues_sig1000 <- p.adjust(p.mat1000, method = "fdr")
+#padj <- as.matrix(pvalues_sig1000)
+
+p.mat1000 <- subset(padj, rownames(padj.R) %in% c('hb', 'plasma.crea', 'GFR')) #make it small
+
+pmat_cols <- p.mat1000[, apply(p.mat1000, 2, function(x) any(x < 0.05))] # extract significant ones
+
+# Create dataframe for all significantly correlated taxa among >1000 counts
+sig1000 <- data.frame(pmat_cols)
+
+# common_cols <- intersect(colnames(padj.R), colnames(sig1000))
+# sig1000_r <- p.matR[, common_cols]
+# 
+# ggcorrplot(sig1000_r, tl.col = "black", tl.srt = 90, 
+#          type = "full", 
+#          lab = TRUE, lab_size = 3, 
+#          legend.title = "Correlation \n Measure",
+#          outline.col = "white",
+#          ggtheme = ggplot2::theme_minimal,
+#    colors = c("#6D9EC1", "white", "darkred"),
+#    #insig= "pch",
+#    tl.cex=5, sig.level = 0.05)
+#    #p.mat = padj)
+# ggsave("significant_1000.png", height = 25, width = 8, dpi=900)
+```
+
+
+#Heatmap from taxa significantly correlating with clinical parameters (adjusted) from mergedmat5000
+```{r}
+pmat.adj5 <- adjust.corr(
+  merged_mat_5000,
+  type = c("spearman"),
+  use = c("pairwise.complete.obs"),
+  adjust = "fdr"
+)
+
+padj5 <- pmat.adj5$P  #matrix of adjusted p cvalues
+
+padj5.R <- pmat.adj5$R
+padj5.R <- padj5.R$r #matrix of correlation coefficients
+p.matR5 <- subset(padj5.R, rownames(padj5.R) %in% c('Hemoglobin', 'Plasma Creatinine', 'GFR')) #make it small
+
+#p.mat1000 <- cor_pmat(merged_mat_1000)
+#pvalues_sig1000 <- p.adjust(p.mat1000, method = "fdr")
+#padj <- as.matrix(pvalues_sig1000)
+
+p.mat5000 <- subset(padj5, rownames(padj5.R) %in% c('Hemoglobin', 'Plasma Creatinine', 'GFR')) #make it small
+
+
+pmat_cols5 <- p.mat5000[, apply(p.mat5000, 2, function(x) any(x < 0.05))] # extract significant ones
+
+# Create a df with all significantly correlated taxa 
+sig5000 <- data.frame(pmat_cols5)
+
+# common_cols5 <- intersect(colnames(padj5.R), colnames(sig5000))
+# sig5000_r <- as.data.frame.matrix(p.matR5[, common_cols5])
+# 
+# 
+# ggcorrplot(sig5000_r, tl.col = "black", tl.srt = 90, 
+#          type = "full", 
+#          lab = TRUE, lab_size = 3, 
+#          legend.title = "Correlation \n Measure",
+#          outline.col = "white",
+#          ggtheme = ggplot2::theme_minimal,
+#    colors = c("#6D9EC1", "white", "darkred"),
+#    #insig= "pch",
+#    tl.cex=5, sig.level = 0.05)
+#    #p.mat = padj)
+# ggsave("significant_5000.png", height = 25, width = 8, dpi=900)
+```
+
+#Full correlation matrix (taxa with >5000 counts)
+```{r}
+
+#Create correlation matrix and save r and p values as tables
+cormatrix_5000 = rcorr(as.matrix(merged_mat_5000), type='spearman')
+
+cor5000r <- cormatrix_5000$r
+write.table(cor5000r, file="rvalues_cor5000.txt", sep = "\t")
+
+cor5000p <- cormatrix_5000$P
+write.table(cor5000p, file="pvalues_cor5000.txt", sep = "\t")
+
+#Meld correlation matrix according to r values
+cordata1 = melt(cormatrix_5000$r)
+# Create a new dataframe with the first 255 rows of cordata (to just choose the correlation of taxa and the clinical parameters)
+cordata <- head(cordata1, 255)
+
+#Meld correlation matrix according to p values
+cordata.p = melt(cormatrix_5000$P)
+cordata.p <- head(cordata.p, 255)
+
+#Create ggplot heatmap
+ggplot(cordata, aes(x=Var2, y=Var1, fill=value)) + 
+  geom_tile() + xlab("") + ylab("")+
+  theme_minimal()+
+  scale_fill_gradient2(midpoint = 0,low = "#6D9EC1",
+  mid = "white",
+  high = "darkred",
+                       limits = c(-1, +1)) +
+   labs(x="",y="",fill="Spearman \n Correlation") +
+    theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5, colour = "black", size = 10),
+          axis.text.y = element_text(size = 8))+
+ labs(title = "Correlation of bacterial taxa", x="") 
+
+ggsave("matrix5000.png", height = 10, width = 8, dpi=900)
+```
+
