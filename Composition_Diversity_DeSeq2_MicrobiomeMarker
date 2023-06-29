@@ -1,0 +1,570 @@
+---
+title: "Masterthesis 16s RNA seq analysis - Composition, Diversity, DeSeq2 and MicrobiomeMarker"
+author: "Philine Letz"
+date: "2023-06-29"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(phyloseq)
+library(ggrepel)
+library(ggpubr)
+library(ggplot2)
+library(gplots)
+library(reshape2)
+library(dplyr)
+library(corrplot)
+library(ggcorrplot)
+library(hrbrthemes)
+library(viridis)
+library(arsenal)
+library(gridExtra)
+library(DESeq2)
+library(vegan)
+library(microbiomeMarker)
+```
+
+```{r}
+setwd("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1")
+sample.key <- read.delim("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1/All_samples.txt")
+ps <- readRDS("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1/ps_all.rds")
+
+ps.new <- subset_samples(ps, group %in% c("cANCA", "pANCA", "Relative"))
+ps.new_1 <- subset_samples(ps, group %in% c("cANCA", "pANCA", "Relative"))
+
+# Access the sample data in the phyloseq object
+sample_data <- sample_data(ps.new_1)
+
+# Change the names of the levels
+levels(sample_data$group) <- c("PR3-ANCA", "MPO-ANCA", "Relative")
+
+# Update the sample data in the phyloseq object
+sample_data(ps.new_1) <- sample_data
+
+
+  total = median(sample_sums(ps.new))
+  standf =  function(x){x / sum(x)}
+  ps.new = transform_sample_counts(ps.new_1, standf)
+```
+
+
+#Barplot Class group-wise
+```{r}
+ps_fraction <- merge_samples(ps.new, "group")
+  #ps_fraction = transform_sample_counts(ps.fraction, standf)
+  total = median(sample_sums(ps_fraction))
+  #standf = function(x, t=total) round(t * (x / sum(x)))
+  ps_fraction = transform_sample_counts(ps_fraction, standf)
+ Class_group <-  plot_bar(ps_fraction, fill = "Class") + 
+  geom_bar(aes(color=Class, fill=Class), stat="identity", position="stack")  +
+  theme_classic() +
+  xlab("") +
+   theme(plot.title = element_text(hjust = 0.5, size = 12),
+axis.title = element_text(size = 12),
+axis.text = element_text(size = 12),
+legend.text = element_text(size = 12))
+  
+  ggsave("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1/Class_group_all.png",width = 9, height = 6, dpi = 900)
+```
+
+
+
+#Barplot Phylum group-wise
+```{r}
+ 
+  ps_fraction <- merge_samples(ps.new, "group")
+  #ps_fraction = transform_sample_counts(ps.fraction, standf)
+  total = median(sample_sums(ps_fraction))
+  #standf = function(x, t=total) round(t * (x / sum(x)))
+  ps_fraction = transform_sample_counts(ps_fraction, standf)
+  
+
+  
+  Phylum_group <- plot_bar(ps_fraction, fill = "Phylum") + 
+  geom_bar(aes(color=Phylum, fill=Phylum), stat="identity", position="stack") +
+      theme_classic() +
+  xlab("") +
+    theme(plot.title = element_text(hjust = 0.5, size = 12),
+axis.title = element_text(size = 12),
+axis.text = element_text(size = 12),
+legend.text = element_text(size = 12))
+  Phylum_group
+   ggsave("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1/Phylum_group_all.png",width = 6, height = 6, dpi = 300)
+```
+
+
+
+#Barplot Family group-wise
+```{r}
+ 
+  ps_fraction <- merge_samples(ps.new, "group")
+  #ps_fraction = transform_sample_counts(ps.fraction, standf)
+  total = median(sample_sums(ps_fraction))
+  #standf = function(x, t=total) round(t * (x / sum(x)))
+  ps_fraction = transform_sample_counts(ps_fraction, standf)
+  Family_group <- plot_bar(ps_fraction, fill = "Family") + 
+  geom_bar(aes(color=Family, fill=Family), stat="identity", position="stack") +
+      theme_classic() +
+  xlab("") +
+    theme(plot.title = element_text(hjust = 0.5, size = 12),
+axis.title = element_text(size = 12),
+axis.text = element_text(size = 12),
+legend.text = element_text(size = 12),
+legend.position = "bottom")
+  
+  Family_group 
+   ggsave("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1/Family_group_all.png",width = 6, height = 6, dpi = 300)
+```
+
+#Merge Composition plots - group
+```{r}
+ggsave("Composition_group.png", grid.arrange(Phylum_group, Class_group,  nrow = 2),  width = 12, height = 10, dpi = 900)
+```
+
+
+#alpha diversity Violin Plot
+```{r}
+
+ rich = estimate_richness(ps.new_1)
+ rich
+ 
+pairwise.wilcox.test(rich$Shannon, sample_data(ps.new_1)$group)
+
+pairwise.wilcox.test(rich$Simpson, sample_data(ps.new_1)$group)
+
+pairwise.wilcox.test(rich$ACE, sample_data(ps.new_1)$group)
+
+pairwise.wilcox.test(rich$Chao1, sample_data(ps.new_1)$group)
+
+pairwise.wilcox.test(rich$InvSimpson, sample_data(ps.new_1)$group)
+
+alpha <- plot_richness(ps.new_1, measures=c("Chao1", "ACE", "Shannon", "Simpson"), x="group",  color="group") +
+        geom_violin(trim=FALSE, alpha=0.3) +
+        geom_boxplot(width=0.2)+
+      theme_classic()+
+        xlab("")+
+      scale_color_manual(values = c("pink3", "darkviolet", "skyblue"))+
+   theme(legend.title = element_blank(),
+         legend.position = "top",
+plot.title = element_text(hjust = 0.5, size = 12),
+axis.title = element_text(size = 12),
+axis.text = element_text(size = 12),
+legend.text = element_text(size = 12),
+axis.text.x = element_text(angle = 90, hjust = 1))
+
+alpha
+   ggsave("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1/alpha diversity_vio.png",width = 12, height = 4, dpi = 900)
+```
+
+
+#beta diversity Ordination NMDS
+```{r}
+
+ps.ord <- ordinate(ps.new, "NMDS", "bray")
+
+   
+ NMDS <- plot_ordination(ps.new, ps.ord, type="samples", color="group", 
+                  shape="group", title="NMDS Bray") + geom_point(size=3) +
+      geom_text_repel(aes(label = sampleID), size = 3) +
+     theme_classic()+
+      scale_color_manual(values = c("pink3", "darkviolet", "skyblue" ))+
+ labs(title = "Bray-Curtis-Index NMDS") +
+    theme(legend.title = element_blank(),
+          legend.position = "bottom",
+          plot.title = element_text(hjust = 0.5, size = 12),
+axis.title = element_text(size = 12),
+axis.text = element_text(size = 12),
+legend.text = element_text(size = 12))
+  
+  ggsave("c:/Data/UKE/Masterarbeit/R/Sequencing Batch 1/NMDS Bray.png",width = 6, height = 4, dpi = 900)
+```
+
+
+#beta diversity PCoA
+```{r}
+ps.pc <- ordinate(ps.new, "PCoA", "bray")
+
+   
+  PCoA <- plot_ordination(ps.new, ps.pc, type="samples", color="group", 
+                  shape="group", title="PCoA Bray") + geom_point(size=3) +
+  geom_text_repel(aes(label = sampleID), size = 3)+
+   theme_classic()+
+      scale_color_manual(values = c("pink3", "darkviolet", "skyblue" ))+
+ labs(title = "Bray-Curtis-Index PCoA") +
+    theme(legend.title = element_blank(),
+          legend.position = "bottom",
+          plot.title = element_text(hjust = 0.5, size = 12),
+axis.title = element_text(size = 12),
+axis.text = element_text(size = 12),
+legend.text = element_text(size = 12))
+  
+  PCoA
+  
+  ggsave("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1/PCoA Bray.png",width = 6, height = 4, dpi = 900)
+  
+
+```
+
+# beat diversity PCoA - processment
+```{r}
+
+process <- read.delim("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1/sampledata_process.txt")
+ps.process <- subset_samples(ps, group %in% c("cANCA", "pANCA", "Relative"))
+levels(process$group) <- c("PR3-ANCA", "MPO-ANCA", "Relative")
+rownames(process) <- process$sampleID
+sample_data(ps.process) <- sample_data(process)
+
+ps.pc.pro <- ordinate(ps.process, "PCoA", "bray")
+
+   
+  PCoA_process <- plot_ordination(ps.process, ps.pc.pro, type="samples", color="process", 
+                  shape="process", title="PCoA Bray") + geom_point(size=3) +
+  geom_text_repel(aes(label = sampleID), size = 3)+
+   theme_classic()+
+      scale_color_manual(values = c("darkslateblue", "cyan4" ))+
+ labs(title = "Bray-Curtis-Index PCoA") +
+    theme(legend.title = element_blank(),
+          legend.position = "bottom",
+          plot.title = element_text(hjust = 0.5, size = 12),
+axis.title = element_text(size = 12),
+axis.text = element_text(size = 12),
+legend.text = element_text(size = 12))
+  
+  
+  PCoA_process
+  
+  ggsave("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1/PCoA Bray_process.png",width = 6, height = 4, dpi = 900)
+
+
+#   set.seed(1)
+#  ps.bray.pro <- phyloseq::distance(ps.process, method = "bray")
+#  sampledfpro <- data.frame(sample_data(ps.process))
+#  adonis(ps.bray.pro ~ process, data = sampledfpro)
+#  
+#  beta <- betadisper(ps.bray.pro, sampledfpro$process)
+# permutest(beta)
+
+```
+
+
+#PERMANOVA on bray-curtis - all three groups
+```{r}
+  set.seed(1)
+ ps.bray <- phyloseq::distance(ps.new_1, method = "bray")
+ sampledf <- data.frame(sample_data(ps.new_1))
+ adonis2(ps.bray ~ group, data = sampledf)
+ 
+ beta <- betadisper(ps.bray, sampledf$group)
+permutest(beta)
+
+```
+
+#PCoA on bray-curtis - PR3-ANCA vs Relative
+```{r}
+ps.pr3 <- subset_samples(ps, group %in% c("cANCA", "Relative"))
+ps.pc.pr3 <- ordinate(ps.pr3, "PCoA", "bray")
+
+   
+  PCoA.pr3 <- plot_ordination(ps.pr3, ps.pc.pr3, type="samples", color="group", 
+                  shape="group", title="PCoA Bray") + geom_point(size=3) +
+  geom_text_repel(aes(label = sampleID), size = 3)+
+   theme_classic()+
+      scale_color_manual(values = c("pink3", "skyblue" ))+
+ labs(title = "Bray-Curtis-Index PCoA") +
+    theme(legend.title = element_blank(),
+          legend.position = "bottom",
+          plot.title = element_text(hjust = 0.5, size = 12),
+axis.title = element_text(size = 12),
+axis.text = element_text(size = 12),
+legend.text = element_text(size = 12))
+
+PCoA.pr3
+ggsave("C:/Data/UKE/Masterarbeit/R/Sequencing Batch 1/PCoA Bray_PR3.png",width = 6, height = 4, dpi = 900)
+
+
+```
+
+
+#Venn diagram
+```{r}
+library("MicEco")
+library(gplots)
+
+
+venn_plot <- ps_venn(ps.new,"group", quantities = list(type=c("percent","counts"), font = 1), labels = list(cex = 1), col = "black", fill = c("pink","darkviolet","skyblue"))
+ggsave("venn_plot.png", venn_plot, width = 6, height = 6, dpi = 300)
+#ggsave("Venn.png", width = 10, height = 8, dpi = 900)
+
+```
+
+#Merge diversity figures
+```{r}
+ggsave("Diversity_measures.png", grid.arrange(alpha, venn_plot, PCoA, NMDS, PCoA_process,
+                                              layout_matrix = rbind(c(1), c(3, 4), c(5, 2)),
+             nrow = 3), width = 10, height = 14, dpi = 900)
+```
+
+#Differential abundance analysis: cANCA vs Relative
+```{r}
+#install.packages('BioManager')
+#BiocManager::install("DESeq2")
+ps.new <- subset_samples(ps, group %in% c("cANCA", "pANCA", "Relative"))
+
+sample_data(ps.new)$group <- as.factor(sample_data(ps.new)$group)
+
+ ds = phyloseq_to_deseq2(ps.new, ~ group)
+ ds = DESeq(ds, test = "Wald", fitType = "parametric")
+ 
+ 
+alpha = 0.05
+ res = results(ds, contrast=c("group", "cANCA", "Relative"), alpha=alpha, cooksCutoff = FALSE)
+ res = res[order(res$padj, na.last=NA), ]
+ res_sig = res[(res$padj < alpha), ]
+
+my_colors <- c("indianred4", "darkseagreen", "cyan4", "darkslategrey", "mediumpurple")
+ 
+ res_sig = cbind(as(res_sig, "data.frame"), as(tax_table(ps.new)[rownames(res_sig), ], "matrix"))
+cANCARel <- ggplot(res_sig, aes(x=Genus, y=log2FoldChange, color=Phylum)) +
+    geom_jitter(size=3, width = 0.2) +
+  scale_color_manual(values = my_colors) + 
+   theme_classic()+
+    theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))+
+ 
+ labs(title = "Differential abundant taxa: PR3-ANCA vs Relatives", x="") 
+
+cANCARel
+
+ ggsave("Dif_taxa_cANCA_Rel.png", width = 10, height = 6, dpi = 900)
+ 
+```
+
+#Differential abundance analysis: pANCA vs Relative
+```{r}
+sample_data(ps.new)$group <- as.factor(sample_data(ps.new)$group)
+
+ ds = phyloseq_to_deseq2(ps.new, ~ group)
+ ds = DESeq(ds, test = "Wald", fitType = "parametric")
+ 
+ 
+alpha = 0.05
+ res_2 = results(ds, contrast=c("group", "pANCA", "Relative"), alpha=alpha, cooksCutoff = FALSE)
+ res_2 = res_2[order(res_2$padj, na.last=NA), ]
+ res_sig_2 = res_2[(res_2$padj < alpha), ]
+
+my_colors2 <- c("indianred4", "darkseagreen", "darkslategrey", "mediumpurple", "tan1")
+ 
+ res_sig_2 = cbind(as(res_sig_2, "data.frame"), as(tax_table(ps.new)[rownames(res_sig_2), ], "matrix"))
+pANCARel <- ggplot(res_sig_2, aes(x=Genus, y=log2FoldChange, color=Phylum)) +
+    geom_jitter(size=3, width = 0.2) +
+   scale_color_manual(values = my_colors2) + 
+   theme_classic()+
+    theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))+
+   #scale_color_manual(values = c("violet", "skyblue4" ))+
+ labs(title = "Differential abundant taxa: MPO-ANCA vs Relatives", x="") 
+pANCARel
+
+ ggsave("Dif_taxa_pANCA_Rel.png", width = 10, height = 6, dpi = 900)
+```
+
+
+#Differential abundance analysis: cANCA vs pANCA
+```{r}
+sample_data(ps.new)$group <- as.factor(sample_data(ps.new)$group)
+
+ ds = phyloseq_to_deseq2(ps.new, ~ group)
+ ds = DESeq(ds, test = "Wald", fitType = "parametric")
+ 
+ 
+alpha = 0.05
+ res_3 = results(ds, contrast=c("group", "cANCA", "pANCA"), alpha=alpha, cooksCutoff = FALSE)
+ res_3 = res_3[order(res_3$padj, na.last=NA), ]
+ res_sig_3 = res_3[(res_3$padj < alpha), ]
+
+my_colors3 <- c("darkseagreen", "cyan4", "darkslategrey", "mediumpurple", "tan1")
+ 
+ res_sig_3 = cbind(as(res_sig_3, "data.frame"), as(tax_table(ps.new)[rownames(res_sig_3), ], "matrix"))
+cANCApANCA <- ggplot(res_sig_3, aes(x=Genus, y=log2FoldChange, color=Phylum)) +
+    geom_jitter(size=3, width = 0.2) +
+   scale_color_manual(values = my_colors3) + 
+   theme_classic()+
+    theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))+
+   #scale_color_manual(values = c("violet", "skyblue4" ))+
+ labs(title = "Differential abundant taxa: PR3-ANCA vs MPO-ANCA", x="") 
+
+ ggsave("Dif_taxa_cANCA_pANCA.png", width = 10, height = 6, dpi = 900)
+```
+
+#Merge DeSeq plots
+```{r}
+ggsave("DeSeq_measures.png", grid.arrange(cANCARel, pANCARel, cANCApANCA,     nrow = 3), width = 10, height = 12, dpi = 900)
+```
+
+
+#MicrobiomeMarker package
+#ANOVA
+```{r}
+mg_anova <- run_test_multiple_groups(
+  ps.new_1,
+  group="group",
+  method = "anova"
+)
+sig_anova <- as.matrix.data.frame(head(marker_table(mg_anova)))
+
+plot_abundance(mg_anova, group = "group")+
+  scale_fill_manual(values = c("PR3-ANCA" = "pink", "MPO-ANCA" = "darkviolet", "Relative" = "skyblue"))+
+    theme_classic()+
+    theme(legend.title= element_blank(),
+plot.title = element_text(hjust = 0.5, size = 12),
+axis.title = element_text(size = 12),
+axis.text = element_text(size = 12),
+legend.text = element_text(size = 12))
+
+
+ggsave("anova.png", width = 7, height = 5, dpi=900)
+
+```
+
+#LefSe
+```{r}
+mm_lefse <- run_lefse(
+    ps.new_1,
+    wilcoxon_cutoff = 0.05,
+    group = "group",
+    kw_cutoff = 0.05,
+    multigrp_strat = TRUE,
+    lda_cutoff = 2,
+    strict = c("1")
+)
+
+mm_lefse 
+
+sig_lefse <- as.matrix.data.frame(marker_table(mm_lefse))
+
+#write.table(sig_lefse, file = "lefse_sig_all.txt", sep = "\t")
+
+lefse_all <- plot_abundance(mm_lefse, group = "group")+
+ scale_fill_manual(values = c("PR3-ANCA" = "pink", "MPO-ANCA" = "darkviolet", "Relative" = "skyblue"))+
+    theme_classic()+
+    theme(legend.title= element_blank(),
+plot.title = element_text(hjust = 0.5, size = 12),
+axis.title = element_text(size = 12),
+axis.text = element_text(size = 12),
+legend.text = element_text(size = 12))
+
+lefse_all
+  
+ggsave("Lefse.png", width = 7, height = 5, dpi = 900)
+
+
+```
+
+#lefse for just PR3-ANCA and Relatives
+```{r}
+ps.2 <- subset_samples(ps, group %in% c("cANCA", "Relative"))
+
+# Access the sample data in the phyloseq object
+sample_data <- sample_data(ps.2)
+
+# Change the names of the levels
+levels(sample_data$group) <- c("PR3-ANCA", "Relative")
+
+# Update the sample data in the phyloseq object
+sample_data(ps.2) <- sample_data
+
+mm_lefse.2 <- run_lefse(
+    ps.2,
+    wilcoxon_cutoff = 0.05,
+    group = "group",
+    kw_cutoff = 0.05,
+    multigrp_strat = TRUE,
+    lda_cutoff = 2)
+
+mm_lefse.2
+
+sig_lefse.2 <- as.matrix.data.frame(marker_table(mm_lefse.2))
+
+#write.table(sig_lefse.2, file = "lefse_sig_pr3rel.txt", sep = "\t")
+
+lefse_pr3_rel <-plot_abundance(mm_lefse.2, group = "group")+
+scale_fill_manual(values = c("PR3-ANCA" = "pink", "Relative" = "skyblue"))+
+  theme_classic()+
+    theme(legend.title= element_blank(),
+plot.title = element_text(hjust = 0.5, size = 12),
+axis.title = element_text(size = 12),
+axis.text = element_text(size = 12),
+legend.text = element_text(size = 12))
+
+lefse_pr3_rel
+ggsave("Lefse_cANCA_Rel.png", width = 7, height = 5, dpi = 900)
+
+#Dot plot indicating LDA score
+plot_ef_dot(mm_lefse.2)+
+  scale_color_manual(values = c("skyblue"))+
+  theme_classic()+
+  theme(
+plot.title = element_text(hjust = 0.5, size = 12),
+axis.title = element_text(size = 12),
+axis.text = element_text(size = 12),
+legend.text = element_text(size = 12))+
+  labs(color = "Enriched Group")
+ggsave("Lefse_cANCA_rel_ef.png", width = 7, height = 5, dpi = 900)
+
+```
+
+#LefSe for MPO-ANCA and Relatives
+```{r}
+ps.3 <- subset_samples(ps, group %in% c("pANCA", "Relative"))
+
+# Access the sample data in the phyloseq object
+sample_data <- sample_data(ps.3)
+
+# Change the names of the levels
+levels(sample_data$group) <- c("MPO-ANCA", "Relative")
+
+# Update the sample data in the phyloseq object
+sample_data(ps.3) <- sample_data
+
+mm_lefse.3 <- run_lefse(
+    ps.3,
+    wilcoxon_cutoff = 0.05,
+    group = "group",
+    kw_cutoff = 0.05,
+    multigrp_strat = TRUE,
+    lda_cutoff = 2
+)
+
+mm_lefse.3 
+
+sig_lefse.3 <- as.matrix.data.frame(head(marker_table(mm_lefse.3)))
+
+lefse_mpo_rel <-plot_abundance(mm_lefse.3, group = "group")+
+scale_fill_manual(values = c("MPO-ANCA" = "darkviolet", "Relative" = "skyblue"))+
+  theme_classic()+
+    theme(legend.title= element_blank(),
+plot.title = element_text(hjust = 0.5, size = 12),
+axis.title = element_text(size = 12),
+axis.text = element_text(size = 12),
+legend.text = element_text(size = 12))
+  
+lefse_mpo_rel
+ggsave("Lefse_pANCA_Rel.png", width = 7, height = 5, dpi = 900)
+
+plot_ef_dot(mm_lefse.3)+
+  scale_color_manual(values = c("darkviolet", "skyblue"))+
+  theme_classic()+
+  theme(
+plot.title = element_text(hjust = 0.5, size = 12),
+axis.title = element_text(size = 12),
+axis.text = element_text(size = 12),
+legend.text = element_text(size = 12))+
+  labs(color = "Enriched Group")
+ggsave("Lefse_mporel_ef.png", width = 7, height = 5, dpi = 900)
+```
+
